@@ -2,10 +2,12 @@ package com.bignerdranch.android.locatr;
 
 import android.*;
 import android.Manifest;
+import android.content.Context;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.location.Location;
+import android.location.LocationManager;
 import android.media.Image;
 import android.os.AsyncTask;
 import android.os.Bundle;
@@ -28,6 +30,17 @@ import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.location.LocationListener;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.maps.CameraUpdate;
+import com.google.android.gms.maps.CameraUpdateFactory;
+import com.google.android.gms.maps.GoogleMap;
+import com.google.android.gms.maps.OnMapReadyCallback;
+import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.BitmapDescriptor;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
+import com.google.android.gms.maps.model.CameraPosition;
+import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.LatLngBounds;
+import com.google.android.gms.maps.model.MarkerOptions;
 
 import java.io.IOException;
 import java.util.List;
@@ -36,10 +49,14 @@ import java.util.List;
  * Created by Sameer on 2/21/2017.
  */
 
-public class LocatrFragment extends Fragment {
+public class LocatrFragment extends SupportMapFragment {
     private static final String TAG = "LocatrFragment";
-    private ImageView mImageView;
     private GoogleApiClient mClient;
+    private GoogleMap mMap;
+
+    private Bitmap mMapImage;
+    private GalleryItem mMapItem;
+    private Location mCurrentLocation;
 
     public static LocatrFragment newInstance() {
         return new LocatrFragment();
@@ -68,14 +85,14 @@ public class LocatrFragment extends Fragment {
                         //
                     }
                 }).build();
-    }
 
-    @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle
-            savedInstanceState) {
-        View v = inflater.inflate(R.layout.locatr_fragment, container, false);
-        mImageView = (ImageView) v.findViewById(R.id.image);
-        return v;
+        getMapAsync(new OnMapReadyCallback() {
+            @Override
+            public void onMapReady(GoogleMap googleMap) {
+                mMap = googleMap;
+                updateUI();
+            }
+        });
     }
 
     @Override
@@ -98,6 +115,19 @@ public class LocatrFragment extends Fragment {
 
         MenuItem searchItem = menu.findItem(R.id.action_locate);
         searchItem.setEnabled(mClient.isConnected());
+        if (ActivityCompat.checkSelfPermission(getActivity(), Manifest.permission.ACCESS_FINE_LOCATION) !=
+                PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(getActivity(), Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            // TODO: Consider calling
+            //    ActivityCompat#requestPermissions
+            // here to request the missing permissions, and then overriding
+            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
+            //                                          int[] grantResults)
+            // to handle the case where the user grants the permission. See the documentation
+            // for ActivityCompat#requestPermissions for more details.
+            return;
+        }
+        mMap.setMyLocationEnabled(mClient.isConnected());
+        mMap.setIndoorEnabled(mClient.isConnected());
     }
 
     @Override
@@ -105,6 +135,7 @@ public class LocatrFragment extends Fragment {
         switch (item.getItemId()) {
             case R.id.action_locate:
                 findImage();
+
                 return true;
             default:
                 return super.onOptionsItemSelected(item);
@@ -119,10 +150,10 @@ public class LocatrFragment extends Fragment {
         if (ActivityCompat.checkSelfPermission(getActivity(), android.Manifest.permission
                 .ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(getActivity(), android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
 
-            ActivityCompat.requestPermissions(getActivity(), new String[] {
+            ActivityCompat.requestPermissions(getActivity(), new String[]{
                     android.Manifest.permission.ACCESS_COARSE_LOCATION,
                     android.Manifest.permission.ACCESS_FINE_LOCATION}, 1
-                     );
+            );
             return;
         }
         LocationServices.FusedLocationApi.requestLocationUpdates(mClient, request, new
@@ -130,9 +161,45 @@ public class LocatrFragment extends Fragment {
                     @Override
                     public void onLocationChanged(Location location) {
                         Log.i(TAG, "Got a fix: " + location);
-                        new SearchTask().execute();
+                        new SearchTask().execute(location);
                     }
                 });
+    }
+
+    private void updateUI() {
+        mMap.setTrafficEnabled(true);
+        mMap.setIndoorEnabled(true);
+        CameraPosition cameraPosition = new CameraPosition.Builder().target(new LatLng
+                (0,0)).zoom(17)
+                .bearing(90).tilt(30).build();
+        mMap.animateCamera(CameraUpdateFactory.newCameraPosition(cameraPosition));
+        mMap.setMapType(GoogleMap.MAP_TYPE_NORMAL);
+
+
+        /*if(mMap == null || mMapImage == null) {
+            return;
+        }
+
+        LatLng itemPoint = new LatLng(mMapItem.getLat(), mMapItem.getLon());
+        LatLng myPoint = new LatLng(mCurrentLocation.getLatitude(), mCurrentLocation.getLongitude
+                ());
+
+        BitmapDescriptor itemBitmap = BitmapDescriptorFactory.fromBitmap(mMapImage);
+        MarkerOptions itemMarker = new MarkerOptions().position(itemPoint).icon(itemBitmap);
+        MarkerOptions myMarker = new MarkerOptions().position(myPoint);
+
+        mMap.clear();
+        mMap.addMarker(itemMarker);
+        mMap.addMarker(myMarker);
+
+        LatLngBounds bounds = new LatLngBounds.Builder().include(itemPoint).include(myPoint)
+                .build();
+
+        int margin = getResources().getDimensionPixelSize(R.dimen.map_inset_margin);
+        CameraUpdate update = CameraUpdateFactory.newLatLngBounds(bounds, margin);
+        CameraUpdate update1 = CameraUpdateFactory.newLatLng(itemPoint);
+        mMap.animateCamera(update);
+        */
     }
     /**
      * Created by Sameer on 2/27/2017.
@@ -141,9 +208,11 @@ public class LocatrFragment extends Fragment {
     public class SearchTask extends AsyncTask<Location, Void, Void> {
         private GalleryItem mGalleryItem;
         private Bitmap mBitmap;
+        private Location mLocation;
 
         @Override
         protected Void doInBackground(Location...params) {
+            mLocation = params[0];
             FlickrFetchr fetchr = new FlickrFetchr();
             List<GalleryItem> items = fetchr.searchPhotos(params[0]);
 
@@ -160,10 +229,14 @@ public class LocatrFragment extends Fragment {
             }
             return null;
         }
+        
 
         @Override
         protected void onPostExecute(Void result) {
-            mImageView.setImageBitmap(mBitmap);
+            mMapImage = mBitmap;
+            mMapItem = mGalleryItem;
+            mCurrentLocation = mLocation;
+            updateUI();
         }
     }
 
