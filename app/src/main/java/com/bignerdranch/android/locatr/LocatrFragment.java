@@ -14,6 +14,8 @@ import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.Fragment;
+import android.support.v4.app.FragmentManager;
+import android.support.v4.content.ContextCompat;
 import android.support.v4.media.MediaBrowserCompat;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -23,6 +25,7 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
+import android.widget.ProgressBar;
 
 import com.bignerdranch.android.photogallery.FlickrFetchr;
 import com.google.android.gms.common.ConnectionResult;
@@ -33,6 +36,7 @@ import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.maps.CameraUpdate;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
+import com.google.android.gms.maps.MapFragment;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.BitmapDescriptor;
@@ -49,7 +53,7 @@ import java.util.List;
  * Created by Sameer on 2/21/2017.
  */
 
-public class LocatrFragment extends SupportMapFragment {
+public class LocatrFragment extends Fragment {
     private static final String TAG = "LocatrFragment";
     private GoogleApiClient mClient;
     private GoogleMap mMap;
@@ -57,6 +61,8 @@ public class LocatrFragment extends SupportMapFragment {
     private Bitmap mMapImage;
     private GalleryItem mMapItem;
     private Location mCurrentLocation;
+    private SupportMapFragment mMapFragment;
+    private ProgressBar mProgressBar;
 
     public static LocatrFragment newInstance() {
         return new LocatrFragment();
@@ -65,6 +71,7 @@ public class LocatrFragment extends SupportMapFragment {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        mMapFragment = (SupportMapFragment)getFragmentManager().findFragmentById(R.id.map_fragment);
         setHasOptionsMenu(true);
 
         mClient = new GoogleApiClient.Builder(getActivity()).addApi(LocationServices.API)
@@ -85,14 +92,27 @@ public class LocatrFragment extends SupportMapFragment {
                         //
                     }
                 }).build();
+    }
 
-        getMapAsync(new OnMapReadyCallback() {
-            @Override
-            public void onMapReady(GoogleMap googleMap) {
-                mMap = googleMap;
-                updateUI();
-            }
-        });
+    @Override
+    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle
+            savedInstanceState) {
+
+        View view =  inflater.inflate(R.layout.locatr_fragment, container, false);
+        mProgressBar = (ProgressBar) view.findViewById(R.id.progressBar);
+        mProgressBar.setVisibility(View.GONE);
+        return view;
+    }
+
+    @Override
+    public void onActivityCreated(Bundle savedInstanceState) {
+        super.onActivityCreated(savedInstanceState);
+        FragmentManager fm = getChildFragmentManager();
+        mMapFragment = (SupportMapFragment)fm.findFragmentById(R.id.map_fragment);
+        if(mMapFragment == null) {
+            mMapFragment = SupportMapFragment.newInstance();
+            fm.beginTransaction().replace(R.id.map_fragment, mMapFragment).commit();
+        }
     }
 
     @Override
@@ -100,6 +120,20 @@ public class LocatrFragment extends SupportMapFragment {
         super.onStart();
         getActivity().invalidateOptionsMenu();
         mClient.connect();
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        if(mMap == null) {
+           mMapFragment.getMapAsync(new OnMapReadyCallback() {
+               @Override
+               public void onMapReady(GoogleMap googleMap) {
+                   mMap = googleMap;
+                   updateUI();
+               }
+           });
+        }
     }
 
     @Override
@@ -134,6 +168,7 @@ public class LocatrFragment extends SupportMapFragment {
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()) {
             case R.id.action_locate:
+                mProgressBar.setVisibility(View.VISIBLE);
                 findImage();
 
                 return true;
@@ -141,6 +176,7 @@ public class LocatrFragment extends SupportMapFragment {
                 return super.onOptionsItemSelected(item);
         }
     }
+
 
     private void findImage() {
         LocationRequest request = LocationRequest.create();
@@ -167,16 +203,7 @@ public class LocatrFragment extends SupportMapFragment {
     }
 
     private void updateUI() {
-        mMap.setTrafficEnabled(true);
-        mMap.setIndoorEnabled(true);
-        CameraPosition cameraPosition = new CameraPosition.Builder().target(new LatLng
-                (0,0)).zoom(17)
-                .bearing(90).tilt(30).build();
-        mMap.animateCamera(CameraUpdateFactory.newCameraPosition(cameraPosition));
-        mMap.setMapType(GoogleMap.MAP_TYPE_NORMAL);
-
-
-        /*if(mMap == null || mMapImage == null) {
+        if(mMap == null || mMapImage == null) {
             return;
         }
 
@@ -197,9 +224,9 @@ public class LocatrFragment extends SupportMapFragment {
 
         int margin = getResources().getDimensionPixelSize(R.dimen.map_inset_margin);
         CameraUpdate update = CameraUpdateFactory.newLatLngBounds(bounds, margin);
-        CameraUpdate update1 = CameraUpdateFactory.newLatLng(itemPoint);
+        //CameraUpdate update1 = CameraUpdateFactory.newLatLng(itemPoint);
         mMap.animateCamera(update);
-        */
+
     }
     /**
      * Created by Sameer on 2/27/2017.
@@ -209,6 +236,11 @@ public class LocatrFragment extends SupportMapFragment {
         private GalleryItem mGalleryItem;
         private Bitmap mBitmap;
         private Location mLocation;
+
+        @Override
+        protected void onPreExecute() {
+            super.onPreExecute();
+        }
 
         @Override
         protected Void doInBackground(Location...params) {
@@ -229,7 +261,6 @@ public class LocatrFragment extends SupportMapFragment {
             }
             return null;
         }
-        
 
         @Override
         protected void onPostExecute(Void result) {
@@ -237,7 +268,7 @@ public class LocatrFragment extends SupportMapFragment {
             mMapItem = mGalleryItem;
             mCurrentLocation = mLocation;
             updateUI();
+            mProgressBar.setVisibility(View.GONE);
         }
     }
-
 }
